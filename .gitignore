@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.qa-vite.log
+.qa-vite.err
+*.tgz
+.openai/
+.env
+.env.*
+!.env.example
