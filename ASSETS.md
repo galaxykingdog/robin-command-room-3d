@@ -1,13 +1,17 @@
-# Asset provenance — v2
+# Asset provenance — v3 / Signal Lost
 
 Project author: **lio88 Archangel9**.
+
+Version 3 adds a mission, procedural effects, and optional synthesized audio around the approved v2 assets. The character and room GLBs are unchanged; their reviewed SHA-256 values below still identify the delivered files. No new character generation or replacement rig is introduced.
 
 | Asset | Source and treatment |
 | --- | --- |
 | `public/assets/robin.glb` | The approved Hyper3D Rodin single-belt Robin, locally repaired and rigged in Blender. The front is retained. Rear ear/hem material artifacts are cleaned and the fused cape square is softened. Embedded textures, one 13-joint skin. |
 | `public/assets/command-room.glb` | Original architectural modeling based on the user-supplied futuristic-room reference. Real geometry with 10 material groups; no third-party meshes or raster textures. Not an export of the Marble world. |
 | `public/assets/room-layout.json` | Authored walk bounds, spawn, and simplified desk/chair collision shapes for the modeled room. |
-| `public/assets/command-room-pano.jpg` | World Labs Marble panorama generated earlier from the supplied reference. Used only for environment reflections in v2. |
+| `public/assets/command-room-pano.jpg` | World Labs Marble panorama generated earlier from the supplied reference. Used only for environment reflections, not the visible room. |
+| `src/mission-effects.js` | Original runtime geometry for numbered beacons, connection effects, and the completion wireframe globe. No downloaded meshes, fonts, or textures are used for these effects. |
+| `src/sound.js` | Original synthesized interface notes generated with Web Audio after the user opts in. No recorded music, audio downloads, or microphone input. |
 | `docs/images/*` | Studio inspection renders of the final character and room. Not browser screenshots. |
 
 ## Character contract
@@ -35,6 +39,12 @@ Reviewed GLB SHA-256: `3eb654f7a3361fc7bb1e0779bfa8f2b1c5266318f5ad53818c59db4ea
 The camera is constrained toward the open entrance; the rear service gap is not a traversal route. Ground-plane collision rectangles/circles are a simplified gameplay approximation, not mesh-accurate physics. This room is a modeled interpretation, not an exact reconstruction of the reference.
 
 The separate [original Marble world](https://marble.worldlabs.ai/world/c80ef9e3-eef2-43ed-a914-ac0e3a64c1f6) is linked from the application.
+
+## Editable sources and validation
+
+The unchanged character's packed Blender files and relative-path rebuild/verification tools are in `robin-v2-editable-source.zip`, attached to [v2.0.0](https://github.com/galaxykingdog/robin-command-room-3d/releases/tag/v2.0.0). The room builder remains in `tools/room/build_room.py`. Version 3's mission, effects, guided pilot, and audio implementation are ordinary editable application source; no new character-source archive is required.
+
+The v2 geometric/export checks above remain relevant because the GLBs did not change. Runtime mission behavior has separate deterministic tests; automated results do not certify rendering speed or touch behavior on every physical phone.
 
 ## Rights
 
