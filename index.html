@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#05090d" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="author" content="lio88 Archangel9" />
+    <meta
+      name="description"
+      content="An interactive animated 3D presentation of Robin inside a futuristic command room."
+    />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>Robin — Command Room · lio88 Archangel9</title>
+    <script type="module" crossorigin src="./assets/index-C3IFLOKQ.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-JjtN81AE.css">
+  </head>
+  <body>
+    <main id="experience" aria-label="Interactive 3D Robin presentation">
+      <canvas id="scene" aria-label="Animated 3D scene of Robin in the command room">
+        Your browser does not support the interactive 3D presentation.
+      </canvas>
+
+      <header class="hud hud--top" aria-label="Scene status">
+        <div class="identity">
+          <span class="identity__signal" aria-hidden="true"></span>
+          <div>
+            <p class="eyebrow">LIVE 3D</p>
+            <h1>Robin</h1>
+            <p class="creator">lio88 Archangel9</p>
+          </div>
+        </div>
+        <div class="status" id="status" aria-live="polite">Preparing the command room…</div>
+      </header>
+
+      <section class="loading" id="loading" aria-live="polite">
+        <div class="loading__mark" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <p id="loading-label">Loading Robin</p>
+        <div class="loading__track" role="progressbar" aria-label="Scene loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="loading-bar"></div>
+        </div>
+        <span id="loading-percent">0%</span>
+      </section>
+
+      <section class="error" id="error" hidden role="alert">
+        <p class="eyebrow">MODEL STATUS</p>
+        <h2>Robin could not enter the room</h2>
+        <p id="error-message">The 3D asset could not be loaded.</p>
+        <button id="retry" type="button">Try again</button>
+      </section>
+
+      <section class="control-deck" aria-label="3D scene controls">
+        <label class="clip-control" for="clip-select">
+          <span>Motion</span>
+          <select id="clip-select" aria-label="Choose animation" disabled>
+            <option>Loading…</option>
+          </select>
+        </label>
+        <div class="control-deck__buttons">
+          <button id="motion-toggle" type="button" disabled aria-pressed="true">Pause motion</button>
+          <button id="orbit-toggle" type="button" aria-pressed="true">Auto orbit</button>
+          <button id="reset-camera" type="button">Reset view</button>
+          <button id="fullscreen" type="button">Full screen</button>
+        </div>
+      </section>
+
+      <p class="gesture-hint">Drag to orbit · Scroll to zoom</p>
+      <a
+        class="world-link"
+        href="https://marble.worldlabs.ai/world/c80ef9e3-eef2-43ed-a914-ac0e3a64c1f6"
+        target="_blank"
+        rel="noreferrer"
+      >Explore the full Marble world ↗</a>
+    </main>
+    <noscript>This interactive 3D presentation requires JavaScript.</noscript>
+  </body>
+</html>
