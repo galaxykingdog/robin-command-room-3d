@@ -2,6 +2,8 @@
 
 An interactive Three.js presentation by **lio88 Archangel9**. Explore a textured 3D Robin character against a futuristic command-room panorama, with gentle idle motion, adjustable camera orbit, and a responsive interface.
 
+[Open the live presentation](https://galaxykingdog.github.io/robin-command-room-3d/) · [Download the release](https://github.com/galaxykingdog/robin-command-room-3d/releases/latest)
+
 The character features a green hat and cape, a red feather, and one lower brown belt with a centered gold buckle. A local material correction gives the rear of the head a gray finish and recolors unwanted rear markings. The scene includes directional lighting, a contact shadow, a solid display plinth with an illuminated ring, and restrained bloom on larger displays.
 
 ## Character preview
@@ -72,7 +74,11 @@ Built with Three.js and Vite. Assets and decoders are served locally with the ap
 
 `npm run check` verifies the approved model checksum, binary GLB structure, finite vertex bounds, valid indices, embedded textures, and local decoder assets. Negative-case tests check that damaged or externally linked models fail validation.
 
-The GitHub Actions workflow validates and builds every pull request. Pushes to `main` also publish `dist/` to GitHub Pages. Enable **GitHub Actions** as the Pages source in repository settings. Relative asset paths support both domain-root and project-path hosting.
+The current live site serves the prebuilt `gh-pages` branch through GitHub Pages. The source lives on `main`. The release was verified locally with a clean `npm ci`, asset self-tests, a production build, and desktop/portrait/landscape browser checks.
+
+To update the live site, build the source, copy the contents of `dist/` into a clean checkout of the `gh-pages` branch, retain its `.nojekyll` file, and commit/push that branch. Do not overwrite `main` with build output.
+
+An optional manually triggered Actions workflow is included for accounts with Actions available. To use that alternative, switch the repository's Pages source to **GitHub Actions**, then run the workflow. It is not the active deployment route for this release. Relative asset paths support both domain-root and project-path hosting.
 
 Third-party license notices are included in [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) and the deployed `THIRD_PARTY.md` file.
 
