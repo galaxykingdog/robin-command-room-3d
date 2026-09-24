@@ -8,10 +8,10 @@
     <meta name="author" content="lio88 Archangel9" />
     <meta
       name="description"
-      content="Explore a 3D command room with Robin. Walk with the touch joystick or keyboard, look around, and wave. By lio88 Archangel9."
+      content="Signal Lost: a playable Robin micro-adventure. Restore three systems in a real 3D command room with touch or keyboard. By lio88 Archangel9."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Robin — Command Room Explorer · lio88 Archangel9</title>
+    <title>Robin — Signal Lost · lio88 Archangel9</title>
   </head>
   <body>
     <main id="experience" aria-label="Explore the command room with Robin">
@@ -23,13 +23,48 @@
         <div class="identity">
           <span class="identity__signal" aria-hidden="true"></span>
           <div>
-            <p class="eyebrow">COMMAND ROOM</p>
+            <p class="eyebrow">SIGNAL LOST / 01</p>
             <h1>Robin</h1>
             <p class="creator">lio88 Archangel9</p>
           </div>
         </div>
         <div class="status" id="status" aria-live="polite">Preparing the command room…</div>
       </header>
+
+      <section id="briefing" class="briefing" aria-labelledby="briefing-title" hidden>
+        <p class="eyebrow">A ROBIN MICRO-ADVENTURE</p>
+        <h2 id="briefing-title">Small hero.<br><em>Big mission.</em></h2>
+        <p class="briefing__copy">The command room has gone quiet.<br>Three systems. One little hero. Bring it back online.</p>
+        <div class="system-list" aria-label="Mission systems"><span>01 / NAV</span><span>02 / POWER</span><span>03 / UPLINK</span></div>
+        <button id="launch-mission" class="primary-button" type="button">Launch mission <span aria-hidden="true">↗</span></button>
+        <div class="briefing__choices"><button id="watch-demo" class="text-button" type="button">Watch demo ▷</button><button id="free-explore" class="text-button" type="button">Just explore</button></div>
+        <p class="briefing__foot">~1 minute · Touch &amp; keyboard · No sign-in</p>
+      </section>
+
+      <section id="mission-panel" class="mission-panel" aria-label="Mission objective" hidden>
+        <div class="mission-panel__top"><p class="eyebrow" id="mission-label">LIVE OBJECTIVE</p><span id="mission-count">01 / 03</span></div>
+        <h2 id="mission-title">Align navigation</h2>
+        <p id="mission-hint">Reach the left console</p>
+        <div class="mission-track" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="mission-panel__bottom"><span id="mission-distance"></span><button id="mission-restart" class="text-button" type="button">Restart mission</button></div>
+        <button id="take-control" class="text-button" type="button" hidden>Watching demo · Take control</button>
+      </section>
+
+      <div class="interaction" id="interaction" hidden>
+        <p id="interaction-hint">Follow the numbered beacon</p>
+        <button id="interact" class="primary-button" type="button" disabled><kbd>E</kbd><span id="interact-label">Align navigation</span><span class="interaction__fill" id="charge-fill" aria-hidden="true"></span></button>
+      </div>
+      <p id="mission-announcement" class="sr-only" role="status" aria-live="polite"></p>
+      <div id="cinematic-caption" class="cinematic-caption" hidden><p class="eyebrow">INCOMING TRANSMISSION</p><p>Every great mission starts small.</p><button id="skip-intro" class="text-button" type="button">Skip intro →</button></div>
+
+      <section id="mission-complete" class="mission-complete" aria-labelledby="complete-title" hidden>
+        <p class="eyebrow">TRANSMISSION RECEIVED</p>
+        <h2 id="complete-title">A little hero.<br><em>A whole world online.</em></h2>
+        <p>Navigation aligned. Power restored. Connection made.</p>
+        <div class="complete-meta"><span>03 / 03 SYSTEMS</span><span id="mission-time"></span></div>
+        <button id="keep-exploring" class="primary-button" type="button">Keep exploring <span aria-hidden="true">↗</span></button>
+        <button id="replay-mission" class="text-button" type="button">Play again</button>
+      </section>
 
       <section class="loading" id="loading" aria-live="polite">
         <div class="loading__mark" aria-hidden="true">
@@ -65,10 +100,11 @@
           <button id="orbit-toggle" type="button" disabled aria-pressed="false">Orbit</button>
           <button id="reset-camera" type="button" disabled>Reset</button>
           <button id="fullscreen" type="button">Full screen</button>
+          <button id="sound-toggle" type="button" aria-pressed="false">Sound off</button>
         </div>
       </section>
 
-      <p class="gesture-hint">Drag the room to look around <span>· Scroll or pinch to zoom</span></p>
+      <p class="gesture-hint">Drag to look <span>· Pinch / scroll to zoom</span></p>
       <a
         class="world-link"
         href="https://marble.worldlabs.ai/world/c80ef9e3-eef2-43ed-a914-ac0e3a64c1f6"
