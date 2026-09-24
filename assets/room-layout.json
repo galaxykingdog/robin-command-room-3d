@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "units": "meters",
+  "up": "Y",
+  "floorY": 0,
+  "name": "Robin Command Room",
+  "front": "+Z",
+  "walkBounds": {
+    "minX": -5.45,
+    "maxX": 5.45,
+    "minZ": -4.34,
+    "maxZ": 4.82
+  },
+  "spawn": {
+    "x": 0,
+    "z": 1.5
+  },
+  "clearForeground": {
+    "minX": -3.5,
+    "maxX": 3.5,
+    "minZ": -1.05,
+    "maxZ": 4.82
+  },
+  "colliders": [
+    {
+      "id": "console-desk",
+      "type": "rect",
+      "minX": -4.52,
+      "maxX": 4.52,
+      "minZ": -3.89,
+      "maxZ": -2.59
+    },
+    {
+      "id": "captain-chair",
+      "type": "circle",
+      "x": 0,
+      "z": -2.09,
+      "radius": 0.79
+    },
+    {
+      "id": "rear-console",
+      "type": "rect",
+      "minX": -5.37,
+      "maxX": 5.37,
+      "minZ": -4.9,
+      "maxZ": -4.2
+    }
+  ],
+  "lighting": {
+    "note": "Emissive surfaces are decorative; illuminate with runtime lights.",
+    "suggestedKeyPosition": [
+      0,
+      5,
+      1
+    ],
+    "suggestedFillPosition": [
+      4,
+      3,
+      4
+    ],
+    "suggestedRimPosition": [
+      -3,
+      4,
+      -3
+    ]
+  },
+  "camera": {
+    "front": [
+      0,
+      3.5,
+      11.2
+    ],
+    "lookAt": [
+      0,
+      1.9,
+      -1
+    ]
+  },
+  "notes": [
+    "Open front and walkable floor; shell/ceiling are real meshes.",
+    "No collider for overhead beams. Character radius must be applied to bounds and colliders.",
+    "Back console gap is not a traversal route. All meshes use procedural solid materials, no textures."
+  ]
+}

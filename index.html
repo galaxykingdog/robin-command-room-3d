@@ -8,16 +8,16 @@
     <meta name="author" content="lio88 Archangel9" />
     <meta
       name="description"
-      content="An interactive animated 3D presentation of Robin inside a futuristic command room."
+      content="Explore a 3D command room with Robin. Walk with the touch joystick or keyboard, look around, and wave. By lio88 Archangel9."
     />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <title>Robin — Command Room · lio88 Archangel9</title>
-    <script type="module" crossorigin src="./assets/index-C3IFLOKQ.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-JjtN81AE.css">
+    <title>Robin — Command Room Explorer · lio88 Archangel9</title>
+    <script type="module" crossorigin src="./assets/index-PyQdkQiR.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CWeywhvy.css">
   </head>
   <body>
-    <main id="experience" aria-label="Interactive 3D Robin presentation">
-      <canvas id="scene" aria-label="Animated 3D scene of Robin in the command room">
+    <main id="experience" aria-label="Explore the command room with Robin">
+      <canvas id="scene" tabindex="0" aria-label="3D command room. Use WASD or arrow keys to move Robin; drag to look around.">
         Your browser does not support the interactive 3D presentation.
       </canvas>
 
@@ -25,7 +25,7 @@
         <div class="identity">
           <span class="identity__signal" aria-hidden="true"></span>
           <div>
-            <p class="eyebrow">LIVE 3D</p>
+            <p class="eyebrow">COMMAND ROOM</p>
             <h1>Robin</h1>
             <p class="creator">lio88 Archangel9</p>
           </div>
@@ -37,7 +37,7 @@
         <div class="loading__mark" aria-hidden="true">
           <span></span><span></span><span></span>
         </div>
-        <p id="loading-label">Loading Robin</p>
+        <p id="loading-label">Preparing Robin and the room</p>
         <div class="loading__track" role="progressbar" aria-label="Scene loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <div id="loading-bar"></div>
         </div>
@@ -51,29 +51,33 @@
         <button id="retry" type="button">Try again</button>
       </section>
 
+      <section class="movement-deck" aria-label="Character movement">
+        <div id="joystick" role="group" tabindex="0" aria-label="Movement joystick" aria-describedby="move-hint" aria-disabled="true">
+          <span class="joystick-axis joystick-axis--vertical" aria-hidden="true"></span>
+          <span class="joystick-axis joystick-axis--horizontal" aria-hidden="true"></span>
+          <span id="joystick-thumb" aria-hidden="true"></span>
+        </div>
+        <p id="move-hint">Drag to move<span>WASD / arrow keys</span></p>
+      </section>
+
       <section class="control-deck" aria-label="3D scene controls">
-        <label class="clip-control" for="clip-select">
-          <span>Motion</span>
-          <select id="clip-select" aria-label="Choose animation" disabled>
-            <option>Loading…</option>
-          </select>
-        </label>
         <div class="control-deck__buttons">
-          <button id="motion-toggle" type="button" disabled aria-pressed="true">Pause motion</button>
-          <button id="orbit-toggle" type="button" aria-pressed="true">Auto orbit</button>
-          <button id="reset-camera" type="button">Reset view</button>
+          <button id="wave" class="wave-button" type="button" disabled>Wave</button>
+          <button id="motion-toggle" type="button" disabled aria-pressed="false">Pause</button>
+          <button id="orbit-toggle" type="button" disabled aria-pressed="false">Orbit</button>
+          <button id="reset-camera" type="button" disabled>Reset</button>
           <button id="fullscreen" type="button">Full screen</button>
         </div>
       </section>
 
-      <p class="gesture-hint">Drag to orbit · Scroll to zoom</p>
+      <p class="gesture-hint">Drag the room to look around <span>· Scroll or pinch to zoom</span></p>
       <a
         class="world-link"
         href="https://marble.worldlabs.ai/world/c80ef9e3-eef2-43ed-a914-ac0e3a64c1f6"
         target="_blank"
         rel="noreferrer"
-      >Explore the full Marble world ↗</a>
+      >Original Marble world ↗</a>
     </main>
-    <noscript>This interactive 3D presentation requires JavaScript.</noscript>
+    <noscript>This interactive 3D presentation requires JavaScript.</noscript>
   </body>
 </html>
