@@ -1,580 +1,359 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { createMovementInput } from './input.js';
+import { cameraRelativeInput, stepLocomotion, clamp, isBlocked, PLAYER_RADIUS, resolveCameraPosition } from './movement.js';
 import './styles.css';
 
-const publicUrl = (path) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
-const MODEL_URL = publicUrl('assets/robin.glb');
-const PANORAMA_URL = publicUrl('assets/command-room-pano.jpg');
-const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
-let reducedMotion = motionPreference.matches;
-const compactLayout = window.matchMedia('(max-width: 760px), (max-height: 560px)');
+const asset = (name) => `${import.meta.env.BASE_URL}${name}`;
+const get = (id) => document.getElementById(id);
+const ui = Object.fromEntries(['scene', 'experience', 'status', 'loading', 'loading-label', 'loading-bar',
+  'loading-percent', 'error', 'error-message', 'retry', 'joystick', 'joystick-thumb', 'motion-toggle',
+  'orbit-toggle', 'reset-camera', 'fullscreen', 'wave'].map((id) => [id, get(id)]));
+const compact = matchMedia('(max-width: 760px), (max-height: 560px)');
+const motionPreference = matchMedia('(prefers-reduced-motion: reduce)');
 const saveData = Boolean(navigator.connection?.saveData);
+let reducedMotion = motionPreference.matches;
+let paused = false;
+let ready = false;
+let contextLost = false;
+let previousTime = null;
+let autoOrbit = false;
+let idleTime = 0;
+let orbitTime = 0;
+let model = null;
+let mixer = null;
+let waving = false;
+let walkWeight = 0;
+let waveWeight = 0;
+let currentStatus = '';
+let layout;
+let locomotion = { x: 0, z: 1.4, vx: 0, vz: 0, speed: 0 };
+const actions = {};
 
-const ui = {
-  canvas: document.querySelector('#scene'),
-  loading: document.querySelector('#loading'),
-  loadingLabel: document.querySelector('#loading-label'),
-  loadingBar: document.querySelector('#loading-bar'),
-  loadingTrack: document.querySelector('.loading__track'),
-  loadingPercent: document.querySelector('#loading-percent'),
-  error: document.querySelector('#error'),
-  errorMessage: document.querySelector('#error-message'),
-  retry: document.querySelector('#retry'),
-  status: document.querySelector('#status'),
-  clipSelect: document.querySelector('#clip-select'),
-  motionToggle: document.querySelector('#motion-toggle'),
-  orbitToggle: document.querySelector('#orbit-toggle'),
-  resetCamera: document.querySelector('#reset-camera'),
-  fullscreen: document.querySelector('#fullscreen'),
-};
-
+function setStatus(text) {
+  if (text !== currentStatus) { ui.status.textContent = text; currentStatus = text; }
+}
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x05090d);
-const camera = new THREE.PerspectiveCamera(31, 1, 0.02, 120);
+scene.background = new THREE.Color(0x111a25);
+scene.fog = new THREE.Fog(0x111a25, 18, 42);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.08, 70);
 let renderer;
-
 try {
-  renderer = new THREE.WebGLRenderer({
-    canvas: ui.canvas,
-    antialias: true,
-    alpha: false,
-    powerPreference: 'high-performance',
-  });
+  renderer = new THREE.WebGLRenderer({ canvas: ui.scene, antialias: true, powerPreference: 'high-performance' });
 } catch (error) {
   ui.loading.hidden = true;
   ui.error.hidden = false;
-  ui.retry.hidden = true;
-  ui.errorMessage.textContent = 'This presentation needs a browser with WebGL enabled.';
-  ui.status.textContent = '3D graphics unavailable';
+  ui['error-message'].textContent = 'This experience needs WebGL. Try an up-to-date browser with graphics acceleration enabled.';
   throw error;
 }
-
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.96;
+renderer.toneMappingExposure = 0.95;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, compactLayout.matches || saveData ? 1.5 : 2));
 
-const dracoLoader = new DRACOLoader().setDecoderPath(publicUrl('decoders/draco/'));
-const ktx2Loader = new KTX2Loader()
-  .setTranscoderPath(publicUrl('decoders/basis/'))
-  .detectSupport(renderer);
-const gltfLoader = new GLTFLoader()
-  .setDRACOLoader(dracoLoader)
-  .setKTX2Loader(ktx2Loader)
-  .setMeshoptDecoder(MeshoptDecoder);
-
+const controls = new OrbitControls(camera, ui.scene);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 3.1;
+controls.maxDistance = 8.5;
+controls.minPolarAngle = 0.21 * Math.PI;
+controls.maxPolarAngle = 0.47 * Math.PI;
+controls.minAzimuthAngle = -1.25;
+controls.maxAzimuthAngle = 1.25;
+controls.autoRotateSpeed = 0.45;
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.22, 0.55, 0.9);
-composer.addPass(bloom);
-// Render targets contain linear color. Match the direct-render path by applying
-// the renderer's tone mapping and display color conversion after bloom.
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(1, 1), 0.17, 0.45, 1.15));
 composer.addPass(new OutputPass());
-let postProcessingEnabled = !compactLayout.matches && !saveData;
+let usePostProcessing = !compact.matches && !saveData;
 
-const home = {
-  position: new THREE.Vector3(),
-  target: new THREE.Vector3(),
-};
+const avatar = new THREE.Group();
+avatar.name = 'RobinPlayer';
+scene.add(avatar);
+const desiredTarget = new THREE.Vector3();
+const followDelta = new THREE.Vector3();
+const cameraForward = new THREE.Vector3();
 
-const MODEL_PRESENTATION_HEIGHT = 2.18;
+const input = createMovementInput(ui.joystick, ui['joystick-thumb'], () => {
+  if (autoOrbit) { autoOrbit = false; updateButtons(); }
+  if (waving) { waving = false; actions.Wave?.fadeOut(0.18); }
+});
 
-function updateHomePose() {
-  if (compactLayout.matches) {
-    home.position.set(0.12, 1.65, 6.2);
-    home.target.set(0, 0.75, 0);
-  } else {
-    home.position.set(0.18, 1.4, 5.25);
-    home.target.set(0, 1.08, 0);
-  }
+function updateButtons() {
+  ui['motion-toggle'].textContent = paused ? 'Resume' : 'Pause';
+  ui['motion-toggle'].setAttribute('aria-pressed', String(paused));
+  ui['orbit-toggle'].textContent = autoOrbit ? 'Stop orbit' : 'Orbit';
+  ui['orbit-toggle'].setAttribute('aria-pressed', String(autoOrbit));
+  input.setEnabled(ready && !paused && !contextLost);
+  ui.wave.disabled = !ready || paused || !actions.Wave;
+  ui['motion-toggle'].disabled = !ready;
+  ui['reset-camera'].disabled = !ready;
+  ui['orbit-toggle'].disabled = !ready;
 }
 
-updateHomePose();
-camera.position.copy(home.position);
-
-const controls = new OrbitControls(camera, ui.canvas);
-controls.enableDamping = true;
-controls.dampingFactor = 0.055;
-controls.enablePan = false;
-controls.minDistance = 2.5;
-controls.maxDistance = 7.4;
-controls.minPolarAngle = Math.PI * 0.28;
-controls.maxPolarAngle = Math.PI * 0.62;
-controls.target.copy(home.target);
-controls.autoRotate = !reducedMotion;
-controls.autoRotateSpeed = 0.42;
-
-const characterStage = new THREE.Group();
-scene.add(characterStage);
-
-let modelRoot = null;
-let mixer = null;
-let clips = [];
-let activeAction = null;
-let motionPlaying = !reducedMotion;
-let heroHoldRemaining = 3;
-let previousFrameTime = null;
-let motionElapsed = 0;
-let contextLost = false;
-let currentCompactLayout = compactLayout.matches;
-let loadStartedAt = performance.now();
-let isLoadingModel = false;
-let presentationScale = 1;
-const normalizedModelSize = new THREE.Vector3(1.8, 2.42, 1);
-const pointerTarget = new THREE.Vector2();
-const pointerMotion = new THREE.Vector2();
-
-function setStatus(message) {
-  ui.status.textContent = message;
+function homeCamera() {
+  const portrait = innerWidth / innerHeight < 0.85;
+  controls.autoRotate = false;
+  controls.enableDamping = false;
+  controls.update(0);
+  controls.target.set(avatar.position.x, 1.65, avatar.position.z);
+  camera.position.set(avatar.position.x + 0.15, portrait ? 2.7 : 2.5, avatar.position.z + (portrait ? 6.3 : 5.8));
+  controls.update(0);
+  controls.enableDamping = true;
 }
 
-function setProgress(value, label) {
-  const percent = Math.max(0, Math.min(100, Math.round(value)));
-  ui.loadingLabel.textContent = label;
-  ui.loadingBar.style.width = `${percent}%`;
-  ui.loadingTrack.setAttribute('aria-valuenow', String(percent));
-  ui.loadingPercent.textContent = `${percent}%`;
+function resetScene() {
+  if (!layout) return;
+  input.reset();
+  locomotion = { ...layout.spawn, vx: 0, vz: 0, speed: 0 };
+  avatar.position.set(locomotion.x, 0, locomotion.z);
+  avatar.rotation.set(0, 0, 0);
+  waving = false;
+  autoOrbit = false;
+  actions.Wave?.stop();
+  walkWeight = 0;
+  waveWeight = 0;
+  homeCamera();
+  updateButtons();
+  setStatus(paused ? 'Paused' : 'Ready to explore');
 }
 
 function resize() {
-  const width = Math.max(1, window.innerWidth);
-  const height = Math.max(1, window.innerHeight);
-  updateHomePose();
-  if (currentCompactLayout !== compactLayout.matches) {
-    currentCompactLayout = compactLayout.matches;
-    restoreHomeView();
-  }
-  if (compactLayout.matches) {
-    const cameraDistance = home.position.distanceTo(home.target);
-    const visibleHeight = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * cameraDistance;
-    const visibleWidth = visibleHeight * (width / height);
-    const widthFit = (visibleWidth * 0.86) / Math.max(normalizedModelSize.x, Number.EPSILON);
-    presentationScale = THREE.MathUtils.clamp(widthFit, 0.62, 0.96);
-  } else {
-    presentationScale = 1;
-  }
-  postProcessingEnabled = !compactLayout.matches && !saveData;
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
-  const pixelRatio = Math.min(window.devicePixelRatio, compactLayout.matches || saveData ? 1.5 : 2);
+  const width = Math.max(innerWidth, 1);
+  const height = Math.max(innerHeight, 1);
+  const pixelRatio = Math.min(devicePixelRatio, compact.matches || saveData ? 1.5 : 2);
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(width, height, false);
   composer.setPixelRatio(pixelRatio);
   composer.setSize(width, height);
-  if (!motionPlaying) characterStage.scale.setScalar(presentationScale);
+  camera.aspect = width / height;
+  camera.fov = width / height < 0.85 ? 52 : 50;
+  camera.updateProjectionMatrix();
+  usePostProcessing = !compact.matches && !saveData;
 }
 
-function buildLighting() {
-  scene.add(new THREE.HemisphereLight(0xeaf5ff, 0x111822, 1.05));
-
-  const key = new THREE.DirectionalLight(0xffffff, 2.6);
-  key.position.set(3.6, 5.2, 3.8);
+function buildLights() {
+  scene.add(new THREE.HemisphereLight(0xcde8ff, 0x46505b, 1.25));
+  const key = new THREE.DirectionalLight(0xfff2df, 3.1);
+  key.position.set(3.5, 5.2, 4);
   key.castShadow = true;
-  const shadowSize = compactLayout.matches || saveData ? 1024 : 2048;
-  key.shadow.mapSize.set(shadowSize, shadowSize);
-  key.shadow.camera.near = 0.1;
-  key.shadow.camera.far = 20;
-  key.shadow.camera.left = -3.5;
-  key.shadow.camera.right = 3.5;
-  key.shadow.camera.top = 4;
-  key.shadow.camera.bottom = -1;
-  key.shadow.bias = -0.00012;
+  key.shadow.mapSize.setScalar(compact.matches ? 1024 : 2048);
+  Object.assign(key.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 0.2, far: 22 });
+  key.shadow.normalBias = 0.025;
+  key.shadow.bias = -0.00015;
   scene.add(key);
-
-  const rim = new THREE.DirectionalLight(0x77c9ff, 2.1);
-  rim.position.set(-4.5, 3.1, -3.6);
-  scene.add(rim);
-
-  const warmFill = new THREE.DirectionalLight(0xffd3a3, 0.8);
-  warmFill.position.set(-3, 2.2, 4.4);
-  scene.add(warmFill);
+  const fill = new THREE.DirectionalLight(0xb6dbff, 1.05);
+  fill.position.set(-4, 4, -3);
+  scene.add(fill);
+  const consoleGlow = new THREE.PointLight(0x59baff, 18, 9, 2);
+  consoleGlow.position.set(0, 2.3, -2.8);
+  scene.add(consoleGlow);
 }
 
-function buildStage() {
-  // A real display plinth grounds the character independently of the panorama.
-  const plinth = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.53, 1.57, 0.1, 128),
-    new THREE.MeshStandardMaterial({ color: 0x101c27, metalness: 0.65, roughness: 0.4 }),
-  );
-  plinth.position.y = -0.055;
-  plinth.receiveShadow = true;
-  scene.add(plinth);
-
-  const shadow = new THREE.Mesh(
-    new THREE.CircleGeometry(1.51, 96),
-    new THREE.ShadowMaterial({ color: 0x02070c, opacity: 0.48 }),
-  );
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.004;
-  shadow.receiveShadow = true;
-  scene.add(shadow);
-
-  const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(1.52, 0.012, 10, 160),
-    new THREE.MeshBasicMaterial({ color: 0x8dd9ff, transparent: true, opacity: 0.5 }),
-  );
-  ring.rotation.x = Math.PI / 2;
-  ring.position.y = 0.014;
-  scene.add(ring);
-}
-
-async function loadPanorama() {
-  const texture = await new THREE.TextureLoader().loadAsync(PANORAMA_URL);
-  texture.mapping = THREE.EquirectangularReflectionMapping;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  scene.background = texture;
-  scene.environment = texture;
-}
-
-function disposeModel() {
-  if (!modelRoot) return;
-  if (mixer) {
-    mixer.stopAllAction();
-    mixer.uncacheRoot(modelRoot);
-  }
-  characterStage.remove(modelRoot);
-  const textures = new Set();
-  modelRoot.traverse((node) => {
-    if (!node.isMesh) return;
-    node.geometry?.dispose();
-    const materials = Array.isArray(node.material) ? node.material : [node.material];
-    materials.forEach((material) => {
-      if (!material) return;
-      Object.values(material).forEach((value) => {
-        if (value?.isTexture) textures.add(value);
-      });
-      material.dispose();
-    });
-  });
-  textures.forEach((texture) => texture.dispose());
-  modelRoot = null;
-  mixer = null;
-  clips = [];
-  activeAction = null;
-}
-
-function normalizeModel(root) {
-  if (!root?.isObject3D) throw new Error('The GLB does not contain a valid scene.');
-  // Rodin's exported forward axis faces away from Three.js' presentation camera.
-  // Turn the asset once at import so the approved face is the default view.
-  root.rotateY(Math.PI);
-  root.updateMatrixWorld(true);
-  const initialBounds = new THREE.Box3().setFromObject(root);
-  if (initialBounds.isEmpty()) throw new Error('The GLB does not contain visible geometry.');
-
-  const size = initialBounds.getSize(new THREE.Vector3());
-  if (![size.x, size.y, size.z].every(Number.isFinite) || size.y <= Number.EPSILON) {
-    throw new Error('The GLB has invalid model dimensions.');
-  }
-  const scale = MODEL_PRESENTATION_HEIGHT / size.y;
-  root.scale.multiplyScalar(scale);
-  root.updateMatrixWorld(true);
-
-  const bounds = new THREE.Box3().setFromObject(root);
-  const center = bounds.getCenter(new THREE.Vector3());
-  root.position.set(-center.x, -bounds.min.y, -center.z);
-  root.updateMatrixWorld(true);
-  new THREE.Box3().setFromObject(root).getSize(normalizedModelSize);
-
-  root.traverse((node) => {
+function prepareCharacter(gltf) {
+  model = gltf.scene;
+  // The source's face points toward -Z. Keep the approved front as the opening pose.
+  model.rotation.y = Math.PI;
+  model.updateMatrixWorld(true);
+  const original = new THREE.Box3().setFromObject(model);
+  const size = original.getSize(new THREE.Vector3());
+  if (original.isEmpty() || !Number.isFinite(size.y) || size.y <= 0) throw new Error('Invalid character bounds');
+  model.scale.multiplyScalar(2.18 / size.y);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.set(-center.x, -box.min.y + 0.012, -center.z);
+  model.traverse((node) => {
     if (!node.isMesh) return;
     node.castShadow = true;
     node.receiveShadow = true;
-    const materials = Array.isArray(node.material) ? node.material : [node.material];
-    materials.forEach((material) => {
-      if (!material) return;
-      if ('envMapIntensity' in material) material.envMapIntensity = 0.85;
-      Object.values(material).forEach((value) => {
-        if (!value?.isTexture) return;
-        value.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-      });
-      material.needsUpdate = true;
-    });
+    // Pose-aware bounds avoid arms being culled during a wave.
+    if (node.isSkinnedMesh) node.frustumCulled = false;
+    for (const material of Array.isArray(node.material) ? node.material : [node.material]) {
+      material.envMapIntensity = 0.65;
+      if (material.map) material.map.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+    }
   });
-}
-
-function playClip(index, fade = true) {
-  if (!mixer || !clips[index]) return;
-  const next = mixer.clipAction(clips[index]);
-  if (activeAction && activeAction !== next) {
-    if (fade) activeAction.fadeOut(0.28);
-    else activeAction.stop();
-  }
-  next.reset().setLoop(THREE.LoopRepeat, Infinity).fadeIn(fade ? 0.28 : 0).play();
-  activeAction = next;
-  mixer.timeScale = motionPlaying ? 1 : 0;
-  setStatus(`${clips[index].name || 'Animation'} active`);
-}
-
-function configureClips(animations, root) {
-  clips = (animations ?? []).filter(
-    (clip) => clip && Number.isFinite(clip.duration) && clip.duration > 0,
-  );
-  ui.clipSelect.replaceChildren();
-  const clipControl = ui.clipSelect.closest('.clip-control');
-
-  if (clips.length === 0) {
-    ui.clipSelect.add(new Option('Idle', 'procedural'));
-    ui.clipSelect.disabled = true;
-    if (clipControl) clipControl.hidden = true;
-    ui.motionToggle.disabled = false;
-    setStatus(motionPlaying ? 'Robin ready' : 'Robin ready · motion paused');
-    return;
-  }
-
-  if (clipControl) clipControl.hidden = false;
-  mixer = new THREE.AnimationMixer(root);
-  clips.forEach((clip, index) => ui.clipSelect.add(new Option(clip.name || `Motion ${index + 1}`, String(index))));
-  const preferred = Math.max(0, clips.findIndex((clip) => /idle|stand|breath/i.test(clip.name)));
-  ui.clipSelect.value = String(preferred);
-  ui.clipSelect.disabled = false;
-  ui.motionToggle.disabled = false;
-  playClip(preferred, false);
-}
-
-async function loadRobin() {
-  if (isLoadingModel) return;
-  isLoadingModel = true;
-  ui.retry.disabled = true;
-  ui.motionToggle.disabled = true;
-  disposeModel();
-  ui.error.hidden = true;
-  ui.loading.hidden = false;
-  loadStartedAt = performance.now();
-  setProgress(28, 'Loading Robin');
-  setStatus('Loading Robin…');
-
-  try {
-    const gltf = await new Promise((resolve, reject) => {
-      gltfLoader.load(
-        MODEL_URL,
-        resolve,
-        (event) => {
-          const value = event.lengthComputable && event.total > 0 ? 30 + (event.loaded / event.total) * 66 : 46;
-          setProgress(value, 'Loading Robin');
-        },
-        reject,
-      );
-    });
-
-    normalizeModel(gltf.scene);
-    modelRoot = gltf.scene;
-    characterStage.add(modelRoot);
-    resize();
-    // Loading can take several seconds while OrbitControls keeps ticking.
-    // Restore the authored hero angle once the model is ready so every visit
-    // opens on Robin's approved face before the slow orbit continues.
-    restoreHomeView();
-    configureClips(gltf.animations, modelRoot);
-    setProgress(100, 'Robin ready');
-    const elapsed = performance.now() - loadStartedAt;
-    window.setTimeout(() => {
-      ui.loading.hidden = true;
-      document.querySelector('#experience').classList.add('is-ready');
-    }, Math.max(180, 720 - elapsed));
-  } finally {
-    isLoadingModel = false;
-    ui.retry.disabled = false;
+  avatar.add(model);
+  if (gltf.animations.length) {
+    mixer = new THREE.AnimationMixer(model);
+    for (const clip of gltf.animations) {
+      const name = ['Idle', 'Walk', 'Wave'].find((key) => clip.name.toLowerCase() === key.toLowerCase());
+      if (name) actions[name] = mixer.clipAction(clip);
+    }
+    for (const name of ['Idle', 'Walk']) actions[name]?.setEffectiveWeight(name === 'Idle' ? 1 : 0).play();
+    if (actions.Wave) {
+      actions.Wave.setLoop(THREE.LoopOnce, 1);
+      actions.Wave.clampWhenFinished = true;
+    }
+    mixer.addEventListener('finished', ({ action }) => { if (action === actions.Wave) waving = false; });
   }
 }
 
-function showError(error) {
-  console.error(error);
+async function loadScene() {
+  const manager = new THREE.LoadingManager();
+  manager.onProgress = (_url, loaded, total) => {
+    const percent = Math.round(loaded / total * 100);
+    ui['loading-bar'].style.width = `${percent}%`;
+    ui['loading-percent'].textContent = `${percent}%`;
+    document.querySelector('.loading__track').setAttribute('aria-valuenow', String(percent));
+  };
+  const loader = new GLTFLoader(manager);
+  loader.setDRACOLoader(new DRACOLoader(manager).setDecoderPath(asset('decoders/draco/')));
+  loader.setKTX2Loader(new KTX2Loader(manager).setTranscoderPath(asset('decoders/basis/')).detectSupport(renderer));
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  const [character, room, roomLayout] = await Promise.all([
+    loader.loadAsync(asset('assets/robin.glb')),
+    loader.loadAsync(asset('assets/command-room.glb')),
+    fetch(asset('assets/room-layout.json')).then((response) => {
+      if (!response.ok) throw new Error('Room layout unavailable');
+      return response.json();
+    }),
+  ]);
+  layout = roomLayout;
+  if (!layout.walkBounds || !Array.isArray(layout.colliders) || !layout.spawn ||
+      !Number.isFinite(layout.spawn.x) || !Number.isFinite(layout.spawn.z) ||
+      isBlocked(layout.spawn.x, layout.spawn.z, PLAYER_RADIUS, layout.walkBounds, layout.colliders)) {
+    throw new Error('Room spawn is not safe');
+  }
+  room.scene.traverse((node) => {
+    if (!node.isMesh) return;
+    node.receiveShadow = true;
+    node.castShadow = true;
+    for (const material of Array.isArray(node.material) ? node.material : [node.material]) {
+      material.envMapIntensity = 0.3;
+    }
+  });
+  scene.add(room.scene);
+  prepareCharacter(character);
+  ready = true;
+  resetScene();
   ui.loading.hidden = true;
-  ui.error.hidden = false;
-  ui.motionToggle.disabled = true;
-  const detail = String(error?.message ?? error);
-  ui.errorMessage.textContent = /404|fetch|network|load failed/i.test(detail)
-    ? 'The 3D model could not be downloaded. Check your connection and try again.'
-    : 'The 3D model could not be opened. Please try again.';
-  setStatus('Model unavailable');
+  ui.experience.classList.add('is-ready');
+  // Only reflections use the panorama. All visible architecture is real geometry.
+  new THREE.TextureLoader().load(asset('assets/command-room-pano.jpg'), (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    scene.environment = texture;
+  }, undefined, () => {});
 }
 
-function updateButtons() {
-  ui.motionToggle.textContent = motionPlaying ? 'Pause motion' : 'Play motion';
-  ui.motionToggle.setAttribute('aria-pressed', String(motionPlaying));
-  ui.orbitToggle.textContent = controls.autoRotate ? 'Pause orbit' : 'Auto orbit';
-  ui.orbitToggle.setAttribute('aria-pressed', String(controls.autoRotate));
-}
-
-function updateFullscreenButton() {
-  const available = Boolean(document.fullscreenEnabled && document.documentElement.requestFullscreen);
-  ui.fullscreen.hidden = !available;
-  ui.fullscreen.textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
-}
-
-function resetCharacterPose() {
-  pointerTarget.set(0, 0);
-  pointerMotion.set(0, 0);
-  characterStage.position.set(0, 0, 0);
-  characterStage.rotation.set(0, 0, 0);
-  characterStage.scale.setScalar(presentationScale);
-}
-
-function restoreHomeView() {
-  // Flush any remaining drag damping before restoring the exact front view.
-  const autoRotate = controls.autoRotate;
-  controls.autoRotate = false;
-  controls.enableDamping = false;
-  controls.update(0);
-  camera.position.copy(home.position);
-  controls.target.copy(home.target);
-  controls.update(0);
-  controls.enableDamping = true;
-  controls.autoRotate = autoRotate;
-  heroHoldRemaining = 3;
-}
-
-function updateRenderLoop() {
-  // Reset only the frame timestamp, preserving animation phase across a pause.
-  previousFrameTime = null;
-  renderer.setAnimationLoop(document.hidden || contextLost ? null : render);
-}
-
-function bindControls() {
-  ui.canvas.addEventListener('pointermove', (event) => {
-    if (reducedMotion || !motionPlaying || event.pointerType === 'touch') return;
-    const bounds = ui.canvas.getBoundingClientRect();
-    pointerTarget.set(
-      THREE.MathUtils.clamp(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -1, 1),
-      THREE.MathUtils.clamp(((event.clientY - bounds.top) / bounds.height) * 2 - 1, -1, 1),
-    );
-  });
-
-  ui.canvas.addEventListener('pointerleave', () => pointerTarget.set(0, 0));
-
-  ui.motionToggle.addEventListener('click', () => {
-    motionPlaying = !motionPlaying;
-    if (mixer) mixer.timeScale = motionPlaying ? 1 : 0;
-    if (!motionPlaying) resetCharacterPose();
-    updateButtons();
-    setStatus(motionPlaying ? 'Motion resumed' : 'Motion paused');
-  });
-
-  ui.orbitToggle.addEventListener('click', () => {
-    controls.autoRotate = !controls.autoRotate;
-    heroHoldRemaining = 0;
-    updateButtons();
-    setStatus(controls.autoRotate ? 'Automatic orbit active' : 'Automatic orbit paused');
-  });
-
-  ui.resetCamera.addEventListener('click', () => {
-    updateHomePose();
-    restoreHomeView();
-    setStatus('Presentation view restored');
-  });
-
-  ui.fullscreen.addEventListener('click', async () => {
-    try {
-      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-      else await document.exitFullscreen();
-    } catch (error) {
-      console.warn('Full screen is unavailable.', error);
-      setStatus('Full screen unavailable');
-    }
-  });
-
-  document.addEventListener('fullscreenchange', updateFullscreenButton);
-  document.addEventListener('visibilitychange', updateRenderLoop);
-  motionPreference.addEventListener('change', (event) => {
-    reducedMotion = event.matches;
-    if (reducedMotion) {
-      motionPlaying = false;
-      controls.autoRotate = false;
-      if (mixer) mixer.timeScale = 0;
-      resetCharacterPose();
-      setStatus('Motion paused');
-    }
-    updateButtons();
-  });
-
-  ui.clipSelect.addEventListener('change', () => {
-    const index = Number.parseInt(ui.clipSelect.value, 10);
-    if (Number.isInteger(index)) playClip(index);
-  });
-
-  ui.retry.addEventListener('click', () => loadRobin().catch(showError));
-  ui.canvas.addEventListener('webglcontextlost', (event) => {
-    event.preventDefault();
-    contextLost = true;
-    updateRenderLoop();
-    setStatus('Graphics paused · restoring…');
-  });
-  ui.canvas.addEventListener('webglcontextrestored', () => {
-    contextLost = false;
-    updateRenderLoop();
-    setStatus(modelRoot ? 'Robin ready' : 'Graphics restored');
-  });
-  controls.addEventListener('start', () => {
-    if (!controls.autoRotate) return;
-    controls.autoRotate = false;
-    updateButtons();
-    setStatus('Manual camera control');
-  });
-}
-
-function render(timestamp) {
-  const delta = previousFrameTime === null ? 0 : Math.min((timestamp - previousFrameTime) / 1000, 0.05);
-  previousFrameTime = timestamp;
-
-  if (mixer && motionPlaying) mixer.update(delta);
-
-  if (modelRoot && motionPlaying) {
-    motionElapsed += delta;
-    const elapsed = motionElapsed;
-    pointerMotion.lerp(pointerTarget, 1 - Math.exp(-delta * 4.5));
-    const breath = Math.sin(elapsed * 1.7);
-    characterStage.position.y = 0.009 + breath * 0.009;
-    characterStage.rotation.x = pointerMotion.y * 0.012;
-    characterStage.rotation.y = Math.sin(elapsed * 0.48) * 0.018 + pointerMotion.x * 0.045;
-    characterStage.rotation.z = Math.sin(elapsed * 0.72) * 0.005 - pointerMotion.x * 0.006;
-    characterStage.scale.set(
-      presentationScale * (1 - breath * 0.0015),
-      presentationScale * (1 + breath * 0.004),
-      presentationScale * (1 - breath * 0.0015),
-    );
+function updateAnimation(dt) {
+  const requestedWalk = clamp(locomotion.speed / 1.2, 0, 1);
+  const response = 1 - Math.exp(-dt * 9);
+  walkWeight += ((waving ? 0 : requestedWalk) - walkWeight) * response;
+  waveWeight += ((waving ? 1 : 0) - waveWeight) * response;
+  actions.Idle?.setEffectiveWeight(Math.max(0, 1 - walkWeight - waveWeight));
+  actions.Walk?.setEffectiveWeight(walkWeight).setEffectiveTimeScale(clamp(locomotion.speed / 1.3, 0.35, 1.5));
+  actions.Wave?.setEffectiveWeight(waveWeight);
+  if (mixer) {
+    // Honor reduced-motion preference while still animating intentional movement.
+    const advance = !reducedMotion || requestedWalk > 0.01 || waving || waveWeight > 0.01;
+    mixer.update(advance ? dt : 0);
+  } else {
+    // Only used by the development preview before the rigged asset is integrated.
+    idleTime += dt;
+    avatar.position.y = !reducedMotion ? Math.sin(idleTime * 1.7) * 0.008 : 0;
   }
+}
 
-  if (modelRoot) heroHoldRemaining = Math.max(0, heroHoldRemaining - delta);
-  const autoRotate = controls.autoRotate;
-  if (!modelRoot || heroHoldRemaining > 0) controls.autoRotate = false;
-  controls.dampingFactor = 1 - Math.pow(1 - 0.055, delta * 60);
-  controls.update(delta);
-  controls.autoRotate = autoRotate;
-  if (postProcessingEnabled) composer.render(delta);
+function render(time) {
+  const dt = previousTime === null ? 0 : Math.min((time - previousTime) / 1000, 0.05);
+  previousTime = time;
+  if (ready && !paused) {
+    cameraForward.subVectors(controls.target, camera.position);
+    const desired = cameraRelativeInput(input.sample(), cameraForward);
+    locomotion = stepLocomotion(locomotion, desired, dt, layout);
+    avatar.position.x = locomotion.x;
+    avatar.position.z = locomotion.z;
+    if (Math.hypot(desired.x, desired.z) > 0.015) {
+      const heading = Math.atan2(desired.x, desired.z);
+      const difference = Math.atan2(Math.sin(heading - avatar.rotation.y), Math.cos(heading - avatar.rotation.y));
+      avatar.rotation.y += difference * (1 - Math.exp(-dt * 12));
+    }
+    updateAnimation(dt);
+    desiredTarget.set(avatar.position.x, 1.65, avatar.position.z);
+    followDelta.subVectors(desiredTarget, controls.target).multiplyScalar(1 - Math.exp(-dt * 7));
+    controls.target.add(followDelta);
+    camera.position.add(followDelta);
+    setStatus(waving ? 'Hello!' : locomotion.speed > 0.1 ? 'Exploring' : 'Ready to explore');
+  }
+  controls.autoRotate = ready && autoOrbit && !paused;
+  if (controls.autoRotate) orbitTime += dt;
+  controls.autoRotateSpeed = Math.cos(orbitTime * 0.22) * 0.7;
+  controls.dampingFactor = 1 - Math.pow(1 - 0.065, dt * 60);
+  controls.update(dt);
+  // Keep the camera inside the open-front room instead of clipping through its shell.
+  const safeCamera = resolveCameraPosition(camera.position, controls.target, controls.minDistance);
+  camera.position.set(safeCamera.x, safeCamera.y, safeCamera.z);
+  camera.lookAt(controls.target);
+  if (usePostProcessing) composer.render(dt);
   else renderer.render(scene, camera);
 }
 
-async function start() {
-  resize();
-  buildLighting();
-  buildStage();
-  bindControls();
-  updateButtons();
-  updateFullscreenButton();
-  updateRenderLoop();
-  window.addEventListener('resize', resize);
-
-  const panoramaTask = loadPanorama().catch((error) => {
-    console.warn('The command-room panorama could not be loaded; using the scene fallback.', error);
-  });
-
-  try {
-    await Promise.all([panoramaTask, loadRobin()]);
-  } catch (error) {
-    showError(error);
-  }
+function refreshLoop() {
+  previousTime = null;
+  input.reset();
+  if (document.hidden || contextLost) locomotion.vx = locomotion.vz = 0;
+  renderer.setAnimationLoop(document.hidden || contextLost ? null : render);
 }
-
-start();
+ui['motion-toggle'].addEventListener('click', () => {
+  paused = !paused;
+  locomotion.vx = locomotion.vz = locomotion.speed = 0;
+  updateButtons();
+  setStatus(paused ? 'Paused' : 'Ready to explore');
+});
+ui.wave.addEventListener('click', () => {
+  if (!ready || paused || !actions.Wave) return;
+  input.reset();
+  locomotion.vx = locomotion.vz = 0;
+  waving = true;
+  actions.Wave.reset().setEffectiveWeight(1).play();
+});
+ui['orbit-toggle'].addEventListener('click', () => { autoOrbit = !autoOrbit; updateButtons(); });
+ui['reset-camera'].addEventListener('click', resetScene);
+ui.retry.addEventListener('click', () => location.reload());
+ui.fullscreen.addEventListener('click', async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch { setStatus('Full screen unavailable'); }
+});
+const updateFullscreen = () => {
+  ui.fullscreen.hidden = !(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+  ui.fullscreen.textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
+};
+document.addEventListener('fullscreenchange', updateFullscreen);
+document.addEventListener('visibilitychange', refreshLoop);
+window.addEventListener('blur', () => { locomotion.vx = locomotion.vz = 0; });
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => { resize(); if (ready) homeCamera(); });
+motionPreference.addEventListener('change', (event) => { reducedMotion = event.matches; if (reducedMotion) autoOrbit = false; updateButtons(); });
+controls.addEventListener('start', () => { autoOrbit = false; updateButtons(); });
+ui.scene.addEventListener('webglcontextlost', (event) => {
+  event.preventDefault(); contextLost = true; refreshLoop(); updateButtons(); setStatus('Restoring graphics…');
+});
+ui.scene.addEventListener('webglcontextrestored', () => {
+  contextLost = false; refreshLoop(); updateButtons(); setStatus('Ready to explore');
+});
+resize();
+buildLights();
+updateButtons();
+updateFullscreen();
+refreshLoop();
+loadScene().catch((error) => {
+  console.error('Scene could not load:', error);
+  ui.loading.hidden = true;
+  ui.error.hidden = false;
+  ui['error-message'].textContent = 'The room or character could not be loaded. Check your connection and try again.';
+  setStatus('Scene unavailable');
+});

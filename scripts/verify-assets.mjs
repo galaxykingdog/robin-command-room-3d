@@ -7,9 +7,12 @@ import { pathToFileURL } from 'node:url';
 // This checks the released, uncompressed GLB. It is not a general glTF validator
 // or a substitute for reviewing the character visually in the browser.
 const publicRoot = new URL('../public/', import.meta.url);
-const approvedModelSha256 = '8397a2deb1b03f61b05d2521d42d51efd11467d6ab31f59f517d8b97cb00db99';
+const approvedModelSha256 = 'f33d94668a80f6bf51582a1339abca7d1fe17984bbebb8c78fb5c4bb9d2de740';
+const approvedRoomSha256 = '3eb654f7a3361fc7bb1e0779bfa8f2b1c5266318f5ad53818c59db4ea96cd3a8';
 const requiredFiles = [
   'assets/robin.glb',
+  'assets/command-room.glb',
+  'assets/room-layout.json',
   'assets/command-room-pano.jpg',
   'favicon.svg',
   'decoders/draco/draco_decoder.js',
@@ -214,9 +217,41 @@ async function main() {
   const summary = inspectGlb(model);
   const sha256 = createHash('sha256').update(model).digest('hex');
   assert.equal(sha256, approvedModelSha256, 'Robin differs from the approved release asset; review it visually before deliberately updating the pinned hash');
+  const room = assets.get('assets/command-room.glb');
+  const roomSummary = inspectGlb(room);
+  assert.equal(createHash('sha256').update(room).digest('hex'), approvedRoomSha256, 'Room differs from the reviewed asset');
+  assert(roomSummary.primitives <= 10 && roomSummary.triangles < 160000, 'Room exceeds the mobile geometry budget');
+  const gltf = JSON.parse(model.subarray(20, 20 + model.readUInt32LE(12)).toString('utf8'));
+  assert.equal(gltf.skins?.length, 1, 'Robin needs one skeleton');
+  assert.equal(gltf.skins[0].joints.length, 13, 'Robin skeleton differs from the reviewed rig');
+  for (const joint of gltf.skins[0].joints) reference(gltf.nodes, joint, 'Skin joint');
+  reference(gltf.accessors, gltf.skins[0].inverseBindMatrices, 'Inverse bind matrices');
+  assert.deepEqual(gltf.animations.map((clip) => clip.name).sort(), ['Idle', 'Walk', 'Wave']);
+  for (const clip of gltf.animations) {
+    assert(clip.channels.length > 0, 'Animation must contain channels');
+    for (const channel of clip.channels) {
+      reference(gltf.nodes, channel.target.node, 'Animation target');
+      const sampler = reference(clip.samplers, channel.sampler, 'Animation sampler');
+      const times = reference(gltf.accessors, sampler.input, 'Animation times');
+      reference(gltf.accessors, sampler.output, 'Animation output');
+      assert(times.max[0] > 0, 'Animation duration must be positive');
+    }
+  }
+  const layout = JSON.parse(assets.get('assets/room-layout.json').toString('utf8'));
+  assert.equal(layout.up, 'Y');
+  assert.equal(layout.floorY, 0);
+  assert(Object.values(layout.walkBounds).every(Number.isFinite));
+  assert(layout.walkBounds.minX < layout.spawn.x && layout.spawn.x < layout.walkBounds.maxX);
+  assert(layout.walkBounds.minZ < layout.spawn.z && layout.spawn.z < layout.walkBounds.maxZ);
+  for (const collider of layout.colliders) {
+    assert(['rect', 'circle'].includes(collider.type));
+    if (collider.type === 'rect') assert(collider.minX < collider.maxX && collider.minZ < collider.maxZ);
+    else assert(collider.radius > 0 && Number.isFinite(collider.x) && Number.isFinite(collider.z));
+  }
   if (process.argv.includes('--self-test')) selfTest(model);
   console.log(`Verified ${assets.size} local assets; ${JSON.stringify(summary)}.`);
   console.log(`Robin SHA-256: ${sha256}`);
+  console.log(`Room: ${JSON.stringify(roomSummary)}; skeleton and Idle/Walk/Wave clips verified.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

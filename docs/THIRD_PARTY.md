@@ -15,8 +15,8 @@ The upstream decoder licenses are identified in the two README files shipped
 inside the pinned Three.js package. The complete applicable Apache-2.0 text
 and Basis Universal attribution notice are retained below. The current
 Robin GLB uses ordinary embedded geometry and JPEG textures; these decoders
-are bundled for loader compatibility and do not turn the asset into a rigged
-or animated model.
+are bundled for loader compatibility. The character's skeleton and animation
+clips are supplied inside the GLB, independently of these decoders.
 
 These software licenses do not grant rights to the Robin character, reference
 art, generated model, panorama, screenshots, or other visual assets. See

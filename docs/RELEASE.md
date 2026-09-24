@@ -1,19 +1,19 @@
-# Robin — Command Room v1.0.0
+# Robin — Command Room Explorer v2.0.0
 
-Interactive 3D presentation by **lio88 Archangel9**.
+Playable Three.js scene by **lio88 Archangel9**.
 
-- [Live presentation](https://galaxykingdog.github.io/robin-command-room-3d/)
-- A textured, rotatable Robin GLB with one lower belt and rear-material corrections.
-- Gentle idle motion, orbit/zoom controls, pause, reset, fullscreen, and responsive layouts.
-- Futuristic command-room panorama, 3D display plinth, lighting, and contact shadows.
-- Source, asset provenance, third-party notices, and reproducible build instructions.
+[Open the live experience](https://galaxykingdog.github.io/robin-command-room-3d/)
 
-## Downloads
+- Mobile analog joystick; WASD and arrow-key movement on desktop.
+- Real 13-bone Robin rig with Idle, Walk, and Wave clips, retaining the approved face and one lower belt.
+- Cleaned rear ears/cape hem and softened rear-square artifact.
+- Actual modeled command room with following camera, floor shadows, and desk/chair collision boundaries.
+- Pause/resume, reset, limited camera tour, zoom, fullscreen where supported, and reduced-motion support.
 
-- `robin.glb`: the exact model used in the viewer.
-- `robin-command-room-web-v1.0.0.zip`: the built static website. Extract and serve over HTTP/HTTPS; do not open the HTML directly from disk.
-- GitHub's source archives contain the editable application. Use Node 22.12+ and run `npm ci`, `npm run check`, and `npm run dev`.
+Downloads include the rigged `robin.glb`, architectural `command-room.glb`, room collision layout, and a static website ZIP. Serve extracted website files over HTTP/HTTPS. Source archives contain the editable application; use Node 22.12+ and run `npm ci`, `npm run check`, and `npm run dev`.
 
-The model is not skeletally rigged: motion is whole-model procedural idle. The room is a panoramic environment, not walkable geometry. Small generated-mesh seams remain. See `docs/ASSETS.md` for provenance and reuse limitations.
+The separate `robin-v2-editable-source.zip` contains packed, editable Blender files and relative-path rebuild/verification scripts. The room builder is included in the application source under `tools/room/`.
 
-Validation: clean dependency installation, GLB checksum/structure/vertex checks and negative-case self-tests, production build, and desktop plus compact browser inspection. No known dependency vulnerabilities were reported by the npm audit performed for this release.
+Validated: binary asset checks, rig/export round-trip, sampled animation poses, input cancellation and movement/collision tests, production build, and desktop/phone-size browser inspection. The rig uses conservative fused-mesh weights; short-stride walking, minor sleeve deformation, and a small rear cape dimple remain. The room is an authored interpretation, not the original Marble world geometry. Asset rights and full limitations are documented in `docs/ASSETS.md`.
+
+The previous v1.0.0 release is retained for rollback.

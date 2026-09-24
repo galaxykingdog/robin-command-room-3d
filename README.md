@@ -1,89 +1,93 @@
-# Robin — Command Room
+# Robin — Command Room Explorer
 
-An interactive Three.js presentation by **lio88 Archangel9**. Explore a textured 3D Robin character against a futuristic command-room panorama, with gentle idle motion, adjustable camera orbit, and a responsive interface.
+A playable Three.js character scene by **lio88 Archangel9**.
 
-[Open the live presentation](https://galaxykingdog.github.io/robin-command-room-3d/) · [Download the release](https://github.com/galaxykingdog/robin-command-room-3d/releases/latest)
+[Open the live experience](https://galaxykingdog.github.io/robin-command-room-3d/) · [Download the latest release](https://github.com/galaxykingdog/robin-command-room-3d/releases/latest)
 
-The character features a green hat and cape, a red feather, and one lower brown belt with a centered gold buckle. A local material correction gives the rear of the head a gray finish and recolors unwanted rear markings. The scene includes directional lighting, a contact shadow, a solid display plinth with an illuminated ring, and restrained bloom on larger displays.
+Move Robin around a modeled command room using the on-screen joystick, WASD, or arrow keys. The character has a 13-bone skeleton with idle, short-stride walk, and greeting animations. Camera-relative movement, soft acceleration, a following camera, and simple obstacle collisions make the scene usable on touchscreens and desktops.
 
-## Character preview
+## Controls
 
-These studio renders show the exported model used by the application. Lighting in the interactive scene is different.
+| Action | Mobile / touch | Desktop |
+| --- | --- | --- |
+| Walk | Drag and hold the left joystick | WASD, arrow keys, or joystick |
+| Choose speed | Move the thumb closer to or farther from the center | Joystick for analog speed |
+| Look around | Drag the room outside the joystick | Drag the room |
+| Zoom | Two-finger pinch | Mouse wheel |
+| Greet | **Wave** | **Wave** |
+| Pause everything / resume | **Pause / Resume** | **Pause / Resume** |
+| Camera tour | **Orbit** | **Orbit** |
+| Return to the entrance | **Reset** | **Reset** |
+| Full screen | **Full screen**, where supported | **Full screen** |
+
+Release the joystick to stop. Pointer cancellation, changing tabs, and losing focus clear held input. The joystick and camera can be used independently with separate fingers. Reduced-motion preferences stop passive idle motion; deliberate movement and greeting remain available.
+
+## What changed in v2
+
+- The same approved single-belt character now has a real skeleton and three animation clips. The face, black eyes, front textures, and lower belt are retained.
+- Rear ears and cape hem are recolored consistently, and the unwanted fused rear square is softened.
+- The visible room is now real geometry: floor, shell, ceiling panels, monitor bank, desk, and chair. It is an original modeled interpretation of the supplied room reference, not an imported Marble world mesh.
+- The old Marble panorama is used only for environment reflections. It is not the visible background or a fake walkable floor.
+- Movement stays inside the room and slides along the desk/chair collision shapes. The camera stays on the open entrance side and maintains clearance near walls.
+
+## Asset previews
+
+These are studio inspection renders, not browser screenshots. Runtime lighting differs.
 
 | Front | Rear |
 | --- | --- |
-| ![Robin viewed from the front](docs/images/robin-front.png) | ![Robin viewed from the rear](docs/images/robin-rear.png) |
+| ![Rigged Robin front](docs/images/robin-front.png) | ![Cleaned Robin rear](docs/images/robin-rear.png) |
+
+![Modeled command-room inspection render](docs/images/command-room.png)
 
 ## Run locally
 
-Use Node.js **22.12 or newer** and npm. From the project directory:
+Node.js **22.12 or newer** and npm are required.
 
 ```sh
 npm ci
+npm run check
 npm run dev
 ```
 
-Open the local URL printed by Vite. The development server binds to `127.0.0.1` by default.
-
-Create and inspect a production build:
+Open the URL printed by Vite. For the production build:
 
 ```sh
-npm run check
 npm run build
 npm run preview
 ```
 
-The production files are written to `dist/`. Serve that directory over HTTP or HTTPS; opening `index.html` directly from disk will not load the application correctly. A browser with JavaScript and WebGL is required.
+Serve the generated `dist/` directory over HTTP or HTTPS; opening the HTML directly from disk does not work. A browser with WebGL is required. No API keys or generation-service login are needed to play.
 
-## Controls
-
-| Action | Control |
-| --- | --- |
-| Look around Robin | Drag with a mouse or one finger |
-| Zoom | Mouse wheel or two-finger pinch |
-| Enable or pause camera rotation | **Auto orbit / Pause orbit** |
-| Enable or pause character motion | **Play motion / Pause motion** |
-| Return to the opening camera angle | **Reset view** |
-| Enter or leave full screen | **Full screen**, where supported |
-
-Dragging pauses automatic orbit. Character motion and camera orbit have separate controls. The presentation starts without automatic movement when the browser requests reduced motion, and uses lighter rendering settings on compact screens or data-saving connections.
-
-## What is 3D
-
-Robin is a textured GLB mesh that can be inspected from all sides. The environment in this application is a **360° panorama**, used as both the background and environmental lighting. It is not a reconstructed room with navigable geometry or collision. The interface links to the separately generated Marble world for that environment.
-
-The included character is **not skeletally rigged**. Its idle motion is generated in JavaScript by gently moving, rotating, and scaling the whole model; it does not walk, speak, or articulate individual limbs. The viewer can play animation clips if a replacement GLB contains them, but the supplied model has no such clips.
-
-The generated mesh and textures can retain small seams and shape inconsistencies. This is a presentation asset, not a claim of exact reproduction of the source artwork or a production-ready game character.
-
-## Project structure
+## Architecture and verification
 
 ```text
-index.html                         Interface and page metadata
-src/main.js                        Three.js scene, loaders, motion, and controls
-src/styles.css                     Responsive interface styling
-public/assets/robin.glb             Character model with embedded textures
-public/assets/command-room-pano.jpg Environment panorama
-public/decoders/                    Local geometry and texture decoders
-docs/ASSETS.md                     Asset provenance and usage notes
+src/main.js                      Rendering, animation blending, following camera
+src/input.js                     Captured-pointer joystick and keyboard input
+src/movement.js                  Camera-relative motion and collision resolution
+public/assets/robin.glb           Rigged character with embedded textures/clips
+public/assets/command-room.glb    Material-merged architectural environment
+public/assets/room-layout.json    Spawn, walk bounds, and obstacle colliders
+scripts/verify-assets.mjs         Binary asset, skeleton, clip, and checksum checks
+scripts/test-movement.mjs         Movement, collision, release, camera-bound tests
+tools/room/build_room.py          Original architectural geometry builder
+docs/ASSETS.md                    Provenance, rig specifications, and limitations
 ```
 
-Built with Three.js and Vite. Assets and decoders are served locally with the application; no generation-service API key is required to run the viewer.
+`npm run check` validates GLB structure, finite geometry bounds, references, embedded images, reviewed asset hashes, 13 joints, and all three clips. Movement checks cover dead zones, normalized diagonals, rotated cameras, obstacle sliding, tunneling, frame-rate tolerance, release, and camera clearance at room edges. Negative-case GLB self-tests reject damaged data.
 
-## Verification and deployment
+The rig was also checked through Blender export/reimport and 21 sampled poses per clip. The project was inspected in desktop, portrait, and landscape browser layouts. This is not a performance certification for every physical phone.
 
-`npm run check` verifies the approved model checksum, binary GLB structure, finite vertex bounds, valid indices, embedded textures, and local decoder assets. Negative-case tests check that damaged or externally linked models fail validation.
+## Publishing
 
-The current live site serves the prebuilt `gh-pages` branch through GitHub Pages. The source lives on `main`. The release was verified locally with a clean `npm ci`, asset self-tests, a production build, and desktop/portrait/landscape browser checks.
+The live site serves prebuilt files from the `gh-pages` branch. Editable source lives on `main`. After checking and building, copy **the contents** of `dist/` into a checkout of `gh-pages`, retain `.nojekyll`, and commit/push that branch. Never overwrite `main` with build output.
 
-To update the live site, build the source, copy the contents of `dist/` into a clean checkout of the `gh-pages` branch, retain its `.nojekyll` file, and commit/push that branch. Do not overwrite `main` with build output.
+An optional manually triggered Actions workflow is included for accounts with Actions available. Switch Pages to **GitHub Actions** before using that alternative. It is not the active publishing route for this release. Relative paths support both root-domain and project-path hosting.
 
-An optional manually triggered Actions workflow is included for accounts with Actions available. To use that alternative, switch the repository's Pages source to **GitHub Actions**, then run the workflow. It is not the active deployment route for this release. Relative asset paths support both domain-root and project-path hosting.
+The original [v1.0.0 release](https://github.com/galaxykingdog/robin-command-room-3d/releases/tag/v1.0.0) remains available.
 
-Third-party license notices are included in [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) and the deployed `THIRD_PARTY.md` file.
+## Scope and rights
 
-## Asset provenance and rights
+The character is still a generated fused mesh with conservative skinning, not animation-ready retopology. Its walk is intentionally short-stride and the wave is a modest side-paw greeting. Small sleeve deformation and a rear-cape dimple remain. There is no facial rig, finger articulation, IK, cloth simulation, jumping, or multiplayer. The room uses simple ground-plane collision shapes rather than a physics simulation.
 
-Robin was generated with Hyper3D Rodin from a supplied character reference, then received a local rear-material correction. The environment panorama was generated with World Labs Marble from a supplied command-room reference. See [asset provenance and rights](docs/ASSETS.md) for details.
-
-Publishing this repository does not grant a separate license to the character artwork, supplied references, generated assets, or project code. No project-wide license is declared. Third-party libraries and decoder components retain their own licenses.
+See [asset provenance](docs/ASSETS.md) and [third-party notices](docs/THIRD_PARTY.md). No project-wide license or separate unrestricted license to the character/reference artwork is asserted by publishing this repository.
